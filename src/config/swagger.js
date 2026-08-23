@@ -7,7 +7,7 @@ const options = {
     info: {
       title: "URL Shortener API",
       version: "1.0.0",
-      description: "A high-performance RESTful API for shortening URLs, tracking click analytics, and managing short links.",
+      description: "A high-performance RESTful API for shortening URLs, tracking click analytics, and managing short links with multi-user JWT authentication.",
     },
     servers: [
       {
@@ -16,7 +16,119 @@ const options = {
       },
     ],
     components: {
+      securitySchemes: {
+        bearerAuth: {
+          type: "http",
+          scheme: "bearer",
+          bearerFormat: "JWT",
+          description: "Enter your JWT Bearer token to authorize protected API requests.",
+        },
+      },
       schemas: {
+        User: {
+          type: "object",
+          properties: {
+            _id: {
+              type: "string",
+              example: "64f1a2b3c4d5e6f7a8b9c0d1",
+              description: "MongoDB user document ID",
+            },
+            name: {
+              type: "string",
+              example: "Aryan Raj",
+              description: "User full name",
+            },
+            email: {
+              type: "string",
+              format: "email",
+              example: "user@example.com",
+              description: "User email address",
+            },
+            createdAt: {
+              type: "string",
+              format: "date-time",
+              example: "2026-08-23T11:00:00.000Z",
+              description: "Timestamp when user registered",
+            },
+          },
+        },
+        RegisterRequest: {
+          type: "object",
+          required: ["name", "email", "password"],
+          properties: {
+            name: {
+              type: "string",
+              example: "Aryan Raj",
+              description: "User's full name",
+            },
+            email: {
+              type: "string",
+              format: "email",
+              example: "user@example.com",
+              description: "Valid unique email address",
+            },
+            password: {
+              type: "string",
+              format: "password",
+              minLength: 6,
+              example: "securePassword123",
+              description: "Password (minimum 6 characters)",
+            },
+          },
+        },
+        LoginRequest: {
+          type: "object",
+          required: ["email", "password"],
+          properties: {
+            email: {
+              type: "string",
+              format: "email",
+              example: "user@example.com",
+              description: "Registered user email",
+            },
+            password: {
+              type: "string",
+              format: "password",
+              example: "securePassword123",
+              description: "User password",
+            },
+          },
+        },
+        AuthResponse: {
+          type: "object",
+          properties: {
+            message: {
+              type: "string",
+              example: "Authentication successful.",
+            },
+            token: {
+              type: "string",
+              example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.examplePayload.exampleSignature",
+              description: "JWT access token",
+            },
+            user: {
+              $ref: "#/components/schemas/User",
+            },
+          },
+        },
+        UnauthorizedError: {
+          type: "object",
+          properties: {
+            error: {
+              type: "string",
+              example: "Authentication token required.",
+            },
+          },
+        },
+        ForbiddenError: {
+          type: "object",
+          properties: {
+            error: {
+              type: "string",
+              example: "Forbidden: You do not own this URL.",
+            },
+          },
+        },
         Url: {
           type: "object",
           properties: {
@@ -39,6 +151,11 @@ const options = {
               type: "string",
               example: "http://localhost:3000/abcd12",
               description: "Full short URL for redirection",
+            },
+            userId: {
+              type: "string",
+              example: "64f1a2b3c4d5e6f7a8b9c0d1",
+              description: "ID of the user who owns this URL",
             },
             clicks: {
               type: "integer",
@@ -137,7 +254,7 @@ const options = {
             originalUrl: {
               type: "string",
               example: "https://example.com/very-long-url-path",
-              description: "Valid HTTP or HTTPS URL to shortener",
+              description: "Valid HTTP or HTTPS URL to shorten",
             },
             shortCode: {
               type: "string",

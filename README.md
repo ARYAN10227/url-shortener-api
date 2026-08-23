@@ -1,17 +1,141 @@
 # URL Shortener API
 
-A RESTful URL Shortener service built with Node.js, Express, and MongoDB.
+A production-ready RESTful URL Shortener service built with Node.js, Express, and MongoDB, featuring multi-user JWT authentication and resource ownership authorization.
 
 ## Features
 
-- Short URL creation with auto-generated or custom short codes
-- Redirection service with click tracking
-- Click analytics and history with date filtering
-- Pagination, search, sorting, and minClicks filtering
-- MongoDB indexing for fast queries and uniqueness constraints
-- Swagger/OpenAPI interactive UI documentation at `/api-docs`
-- Rate limiting and security middleware (Helmet, CORS)
-- Fully containerized with Docker & Docker Compose
+- **User Authentication**: Secure user registration, password hashing with `bcryptjs`, and JSON Web Token (JWT) issuing.
+- **URL Ownership & Authorization**: Multi-tenant resource isolation ensuring users can only view, edit, delete, and inspect analytics for their own shortened URLs.
+- **Public Short URL Redirection**: Seamless, unauthenticated redirection (`GET /:shortCode`) with instant click count increments and detailed click timestamp tracking.
+- **Short URL Management**: Create shortened URLs with random alphanumeric codes or custom user-defined short codes.
+- **Detailed Analytics**: Track total clicks and fetch historical click timestamps with optional date-time range filtering (`fromDate`, `toDate`).
+- **Query Capabilities**: URL listing with pagination, search by original URL/shortCode, multi-field sorting, and minimum click count filtering.
+- **Database Optimization**: Indexed MongoDB collections (`users`, `urls`, `clicks`) for fast indexed lookups and uniqueness constraints.
+- **Swagger / OpenAPI 3.0 Documentation**: Interactive API documentation at `/api-docs` with JWT Bearer authorization support.
+- **Security & Reliability**: Helmet HTTP headers, CORS configuration, centralized error handling, and rate limiting on `/api` routes.
+- **Containerization & CI/CD**: Ready for Docker/Docker Compose deployment and GitHub Actions CI workflow.
+
+---
+
+## Authentication & Authorization Architecture
+
+### Authentication Flow
+1. **Registration (`POST /api/auth/register`)**:
+   - Clients submit `name`, `email`, and `password` (minimum 6 characters).
+   - Validates email formatting and checks for duplicates.
+   - Hashes password using `bcryptjs` (salt rounds: 10). Plain-text passwords and password hashes are never exposed.
+   - Automatically issues a signed JWT token containing user identifiers.
+2. **Login (`POST /api/auth/login`)**:
+   - Authenticates user credentials via `bcrypt.compare`.
+   - Returns a signed JWT token on success.
+3. **Current Profile (`GET /api/auth/me`)**:
+   - Authenticated route returning the current user's profile (`_id`, `name`, `email`, `createdAt`).
+
+### JWT Bearer Authorization
+Protected API routes require an `Authorization` HTTP header with the format:
+```http
+Authorization: Bearer <your_jwt_token>
+```
+
+### URL Ownership Rules
+- **Creation (`POST /api/urls`)**: The URL is automatically tagged with the authenticated user's ID (`userId: req.user._id`). The client cannot spoof ownership.
+- **Listing (`GET /api/urls`)**: Returns only the URLs belonging to the authenticated user.
+- **Details (`GET /api/urls/:shortCode`)**: Returns `403 Forbidden` if another user attempts to view details of a URL they do not own.
+- **Modification (`PATCH /api/urls/:shortCode`)**: Returns `403 Forbidden` if a non-owner tries to modify the URL.
+- **Deletion (`DELETE /api/urls/:shortCode`)**: Returns `403 Forbidden` if a non-owner attempts deletion. Cascades deletion to associated click records on success.
+- **Analytics (`GET /api/urls/:shortCode/analytics`)**: Returns `403 Forbidden` if a non-owner attempts to inspect analytics.
+
+### Public Redirection
+- **`GET /:shortCode` remains completely public**: Any user or browser can open shortened links without authentication. Clicks are logged and tracked automatically.
+
+### Legacy URL Compatibility
+- Existing URLs created prior to authentication (lacking a `userId` field) cannot be modified, deleted, or viewed via user management endpoints by arbitrary users, ensuring backwards compatibility and data isolation.
+
+---
+
+## API Endpoints Reference
+
+### Authentication Endpoints
+
+| Method | Endpoint | Description | Auth Required |
+|---|---|---|---|
+| `POST` | `/api/auth/register` | Register new user account and receive JWT | No |
+| `POST` | `/api/auth/login` | Log in with email and password to receive JWT | No |
+| `GET` | `/api/auth/me` | Retrieve profile of the logged-in user | **Yes (Bearer)** |
+
+#### Example: User Registration
+```bash
+curl -X POST http://localhost:3000/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Aryan Raj",
+    "email": "user@example.com",
+    "password": "securePassword123"
+  }'
+```
+
+Response (`201 Created`):
+```json
+{
+  "message": "User registered successfully.",
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": {
+    "_id": "64f1a2b3c4d5e6f7a8b9c0d1",
+    "name": "Aryan Raj",
+    "email": "user@example.com",
+    "createdAt": "2026-08-24T00:00:00.000Z"
+  }
+}
+```
+
+---
+
+### URL Management Endpoints (Protected)
+
+| Method | Endpoint | Description | Auth Required |
+|---|---|---|---|
+| `POST` | `/api/urls` | Create short URL (auto-generated or custom code) | **Yes (Bearer)** |
+| `GET` | `/api/urls` | Get paginated list of user's URLs | **Yes (Bearer)** |
+| `GET` | `/api/urls/:shortCode` | Get URL details (owner only) | **Yes (Bearer)** |
+| `PATCH` | `/api/urls/:shortCode` | Update destination URL or short code (owner only) | **Yes (Bearer)** |
+| `DELETE` | `/api/urls/:shortCode` | Delete short URL and its click history (owner only) | **Yes (Bearer)** |
+| `GET` | `/api/urls/:shortCode/analytics` | Get click analytics and history (owner only) | **Yes (Bearer)** |
+
+#### Example: Create Short URL
+```bash
+curl -X POST http://localhost:3000/api/urls \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <your_jwt_token>" \
+  -d '{
+    "originalUrl": "https://example.com/very/long/url",
+    "shortCode": "custom123"
+  }'
+```
+
+---
+
+### Public & System Endpoints
+
+| Method | Endpoint | Description | Auth Required |
+|---|---|---|---|
+| `GET` | `/:shortCode` | Public short link redirection (HTTP 302) | No |
+| `GET` | `/health` | Health check endpoint (`{"status": "ok"}`) | No |
+| `GET` | `/api-docs` | Interactive Swagger UI API documentation | No |
+
+---
+
+## Environment Variables
+
+Configure the following environment variables in `.env` (or cloud dashboard):
+
+| Variable | Required | Description | Example / Default |
+|---|---|---|---|
+| `PORT` | Optional | Port for the HTTP server | `3000` |
+| `MONGODB_URI` | **Required** | MongoDB connection URI | `mongodb://localhost:27017` or Atlas URI |
+| `MONGODB_DB_NAME` | Optional | Target MongoDB database name | `url_shortener` |
+| `NODE_ENV` | Optional | Node environment (`development`, `production`, `test`) | `development` |
+| `JWT_SECRET` | **Required** | Secret key used to sign and verify JWT tokens | `your_super_secret_jwt_key_32_chars` |
+| `JWT_EXPIRES_IN` | Optional | Lifetime expiration of issued JWTs | `7d` |
 
 ---
 
@@ -22,26 +146,26 @@ A RESTful URL Shortener service built with Node.js, Express, and MongoDB.
    npm install
    ```
 
-2. **Configure environment variables:**
-   Create a `.env` file in the root directory:
+2. **Configure `.env` file:**
    ```env
    PORT=3000
    MONGODB_URI=mongodb://localhost:27017
    MONGODB_DB_NAME=url_shortener
    NODE_ENV=development
+   JWT_SECRET=your_secret_jwt_key
+   JWT_EXPIRES_IN=7d
    ```
 
 3. **Start the application:**
    ```bash
-   npm run dev
-   ```
-   Or for production mode:
-   ```bash
-   npm start
+   npm run dev    # with watch mode
+   # or
+   npm start      # standard mode
    ```
 
-4. **Run tests:**
+4. **Run syntax checks & tests:**
    ```bash
+   npm run check
    npm test
    ```
 
@@ -49,123 +173,24 @@ A RESTful URL Shortener service built with Node.js, Express, and MongoDB.
 
 ## Docker Deployment
 
-The application is containerized using Docker and Docker Compose for easy deployment and container orchestration.
+The application includes `Dockerfile` and `docker-compose.yml` configurations:
 
-### Prerequisites
-- Docker Engine (v20.10+)
-- Docker Compose (v2.0+)
+```bash
+# Build and run containers
+docker compose up -d --build
 
-### Docker Commands
+# View logs
+docker compose logs -f app
 
-- **Build and start containers in the foreground:**
-  ```bash
-  docker compose up --build
-  ```
-
-- **Start containers in detached mode (background):**
-  ```bash
-  docker compose up -d --build
-  ```
-
-- **View application logs:**
-  ```bash
-  docker compose logs -f app
-  ```
-
-- **Stop running containers:**
-  ```bash
-  docker compose stop
-  ```
-
-- **Stop and remove containers and networks:**
-  ```bash
-  docker compose down
-  ```
-
-- **Stop and remove containers, networks, AND persistent volumes (deletes database data):**
-  ```bash
-  docker compose down -v
-  ```
+# Stop containers
+docker compose down
+```
 
 ---
 
-## Continuous Integration (CI)
+## Production Deployment (Render / Cloud)
 
-This project uses **GitHub Actions** for automated continuous integration (`.github/workflows/ci.yml`).
-
-- **Triggers:** Automatically runs on every `push` to `main` and on every `pull_request` targeting `main`.
-- **Workflow Pipeline:**
-  1. Checks out repository code.
-  2. Sets up Node.js 20 environment with npm caching.
-  3. Spins up a temporary MongoDB 7 service container on port 27017.
-  4. Runs `npm ci` for clean dependency installation.
-  5. Executes `npm run check` for automated JavaScript syntax validation across all codebase files.
-  6. Executes `npm test` to run all Jest + Supertest integration tests against MongoDB.
-
----
-
-## Production Deployment
-
-The application is cloud-ready and can be deployed to platforms like **Render**, **Railway**, **Fly.io**, or **Heroku** connected to a managed MongoDB database service such as **MongoDB Atlas**.
-
-### Required Environment Variables
-
-Configure the following environment variables in your cloud deployment platform settings:
-
-| Variable | Description | Example / Required Format |
-|---|---|---|
-| `PORT` | HTTP port provided by hosting environment | `10000` (automatically set by Render) |
-| `MONGODB_URI` | Connection string for managed MongoDB (e.g. Atlas) | `mongodb+srv://<user>:<password>@cluster.mongodb.net` |
-| `MONGODB_DB_NAME` | Name of the database to connect to | `url_shortener` |
-| `NODE_ENV` | Environment mode | `production` |
-
-### Cloud Deployment (e.g. Render)
-
-1. **Deploying Web Service:**
-   - Connect your GitHub repository to Render.
-   - Create a new **Web Service**.
-   - Build Command: `npm ci`
-   - Start Command: `npm start`
-2. **Database Setup:**
-   - Create a MongoDB cluster on MongoDB Atlas (or Render Managed MongoDB).
-   - Set `MONGODB_URI` in Environment Variables to your Atlas connection string (ensure IP whitelist includes `0.0.0.0/0` or deployment IPs).
-   - Set `MONGODB_DB_NAME=url_shortener`.
-   - Set `NODE_ENV=production`.
-3. **Health Check Configuration:**
-   - Set Health Check Path in Render settings to `/health`.
-
----
-
-## Render + MongoDB Atlas Deployment
-
-Follow these mandatory steps to successfully deploy the API on Render connected to MongoDB Atlas:
-
-### 1. MongoDB Atlas Configuration
-- **Network Access (IP Whitelist)**:
-  - In MongoDB Atlas, navigate to **Network Access** under **Security**.
-  - Add IP Address `0.0.0.0/0` (Allow Access from Anywhere). Render uses dynamic IP addresses that will fail TLS handshakes or throw `MongoServerSelectionError: ... SSL routines:ssl3_read_bytes:tlsv1 alert internal error` if the Render deployment IP is not whitelisted.
-- **Database User**:
-  - In **Database Access**, create a user with `readWrite` access to your database.
-  - If your password contains special characters (`@`, `:`, `#`, `%`, etc.), ensure they are URL-encoded in the connection string.
-
-### 2. Render Environment Variables
-In your Render Dashboard -> **Web Service** -> **Environment**:
-| Key | Value | Description |
-|---|---|---|
-| `MONGODB_URI` | `mongodb+srv://<username>:<password>@cluster0.xxx.mongodb.net/url_shortener?retryWrites=true&w=majority` | Full MongoDB Atlas connection string |
-| `MONGODB_DB_NAME` | `url_shortener` | Database name |
-| `NODE_ENV` | `production` | Production mode flag |
-
-### 3. Render Web Service Settings
-- **Runtime**: Node
-- **Build Command**: `npm ci`
-- **Start Command**: `npm start`
-- **Health Check Path**: `/health`
-
----
-
-## API & Documentation
-
-- **Base URL:** `http://localhost:3000` (or your production cloud URL)
-- **Health Check Endpoint:** `GET /health` (Returns `{"status": "ok"}`)
-- **Swagger OpenAPI Documentation:** `http://localhost:3000/api-docs` (or `<your-production-url>/api-docs`)
+1. **MongoDB Atlas**: Ensure database access user exists and network IP whitelist is configured to `0.0.0.0/0`.
+2. **Environment Variables**: Set `MONGODB_URI`, `MONGODB_DB_NAME`, `JWT_SECRET`, `JWT_EXPIRES_IN`, and `NODE_ENV=production`.
+3. **Build & Start**: Build Command: `npm ci`, Start Command: `npm start`.
+4. **Health Check**: Set health check path to `/health`.

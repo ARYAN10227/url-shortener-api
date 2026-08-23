@@ -5,6 +5,7 @@ export const apiLimiter = rateLimit({
   limit: 100, // Max 100 requests per 15 minutes per IP
   standardHeaders: true,
   legacyHeaders: false,
+  skip: () => process.env.NODE_ENV === "test",
   handler: (req, res) => {
     res.status(429).json({
       error: "Too many requests. Please try again later.",

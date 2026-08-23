@@ -32,9 +32,16 @@ export async function connectToDatabase(overrideDbName) {
   database = client.db(dbName);
 
   // Create indexes for query optimization and uniqueness enforcement
+  const usersCollection = database.collection("users");
+  await usersCollection.createIndexes([
+    { key: { email: 1 }, name: "email_1", unique: true },
+    { key: { createdAt: -1 }, name: "createdAt_-1" },
+  ]);
+
   const urlsCollection = database.collection("urls");
   await urlsCollection.createIndexes([
     { key: { shortCode: 1 }, name: "shortCode_1", unique: true },
+    { key: { userId: 1, createdAt: -1 }, name: "userId_1_createdAt_-1" },
     { key: { createdAt: -1 }, name: "createdAt_-1" },
     { key: { clicks: -1 }, name: "clicks_-1" },
   ]);

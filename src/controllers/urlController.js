@@ -7,6 +7,7 @@ import { parseAnalyticsQuery } from "../utils/parseAnalyticsQuery.js";
 export async function createShortUrl(req, res, next) {
   const originalUrl = req.body?.originalUrl;
   const customShortCode = req.body?.shortCode;
+  const userId = req.user._id;
 
   const urlValidationError = validateOriginalUrl(originalUrl);
   if (urlValidationError) {
@@ -30,6 +31,7 @@ export async function createShortUrl(req, res, next) {
     const url = {
       originalUrl,
       shortCode: trimmedCode,
+      userId,
       createdAt: new Date(),
       clicks: 0,
     };
@@ -61,6 +63,7 @@ export async function createShortUrl(req, res, next) {
     const url = {
       originalUrl,
       shortCode,
+      userId,
       createdAt: new Date(),
       clicks: 0,
     };
@@ -99,7 +102,7 @@ export async function getAllUrls(req, res, next) {
     const database = getDatabase();
     const collection = database.collection("urls");
 
-    const query = {};
+    const query = { userId: req.user._id };
 
     if (search) {
       const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -157,6 +160,12 @@ export async function getUrlDetails(req, res, next) {
       });
     }
 
+    if (!urlDocument.userId || urlDocument.userId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        error: "Forbidden: You do not own this URL.",
+      });
+    }
+
     return res.json(urlDocument);
   } catch (error) {
     next(error);
@@ -180,6 +189,12 @@ export async function getUrlAnalytics(req, res, next) {
     if (!urlDocument) {
       return res.status(404).json({
         error: "Short URL not found.",
+      });
+    }
+
+    if (!urlDocument.userId || urlDocument.userId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        error: "Forbidden: You do not own this URL.",
       });
     }
 
@@ -254,12 +269,18 @@ export async function deleteUrl(req, res, next) {
   try {
     const database = getDatabase();
 
-    // 1. Find the URL document to obtain its _id
+    // 1. Find the URL document to verify existence and ownership
     const urlDocument = await database.collection("urls").findOne({ shortCode });
 
     if (!urlDocument) {
       return res.status(404).json({
         error: "Short URL not found.",
+      });
+    }
+
+    if (!urlDocument.userId || urlDocument.userId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        error: "Forbidden: You do not own this URL.",
       });
     }
 
@@ -316,17 +337,25 @@ export async function updateUrl(req, res, next) {
 
   try {
     const database = getDatabase();
-    const updatedDocument = await database.collection("urls").findOneAndUpdate(
-      { shortCode },
-      { $set: updates },
-      { returnDocument: "after" }
-    );
 
-    if (!updatedDocument) {
+    const existingUrl = await database.collection("urls").findOne({ shortCode });
+    if (!existingUrl) {
       return res.status(404).json({
         error: "Short URL not found.",
       });
     }
+
+    if (!existingUrl.userId || existingUrl.userId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        error: "Forbidden: You do not own this URL.",
+      });
+    }
+
+    const updatedDocument = await database.collection("urls").findOneAndUpdate(
+      { _id: existingUrl._id },
+      { $set: updates },
+      { returnDocument: "after" }
+    );
 
     // Synchronize click history records if shortCode changed
     if (trimmedNewCode && trimmedNewCode !== shortCode) {

@@ -8,6 +8,7 @@ import {
   deleteUrl,
   updateUrl,
 } from "../controllers/urlController.js";
+import { authenticate } from "../middleware/auth.js";
 
 const router = Router();
 
@@ -16,9 +17,11 @@ const router = Router();
  * /api/urls:
  *   post:
  *     summary: Create a short URL
- *     description: Creates a shortened URL for the provided original URL. Accepts an optional custom shortCode.
+ *     description: Creates a shortened URL owned by the authenticated user. Accepts an optional custom shortCode.
  *     tags:
  *       - URLs
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -38,6 +41,12 @@ const router = Router();
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         description: Unauthorized - missing, invalid, or expired token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/UnauthorizedError'
  *       409:
  *         description: Short code collision / code already exists
  *         content:
@@ -45,10 +54,12 @@ const router = Router();
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  *   get:
- *     summary: Get all short URLs
- *     description: Retrieves a paginated list of short URLs with optional search, sorting, and minClicks filters.
+ *     summary: Get all short URLs owned by user
+ *     description: Retrieves a paginated list of short URLs owned by the authenticated user with optional search, sorting, and minClicks filters.
  *     tags:
  *       - URLs
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: query
  *         name: page
@@ -88,7 +99,7 @@ const router = Router();
  *         description: Search query matching originalUrl or shortCode
  *     responses:
  *       200:
- *         description: A paginated list of short URLs
+ *         description: A paginated list of short URLs owned by the authenticated user
  *         content:
  *           application/json:
  *             schema:
@@ -99,18 +110,26 @@ const router = Router();
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         description: Unauthorized - missing, invalid, or expired token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/UnauthorizedError'
  */
-router.post("/api/urls", createShortUrl);
-router.get("/api/urls", getAllUrls);
+router.post("/api/urls", authenticate, createShortUrl);
+router.get("/api/urls", authenticate, getAllUrls);
 
 /**
  * @openapi
  * /api/urls/{shortCode}/analytics:
  *   get:
  *     summary: Get short URL analytics
- *     description: Retrieves click analytics and historical click timestamps for a short code.
+ *     description: Retrieves click analytics and historical click timestamps for a short code owned by the authenticated user.
  *     tags:
  *       - Analytics
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: shortCode
@@ -149,6 +168,18 @@ router.get("/api/urls", getAllUrls);
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         description: Unauthorized - missing, invalid, or expired token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/UnauthorizedError'
+ *       403:
+ *         description: Forbidden - URL belongs to another user
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ForbiddenError'
  *       404:
  *         description: Short URL not found
  *         content:
@@ -156,16 +187,18 @@ router.get("/api/urls", getAllUrls);
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.get("/api/urls/:shortCode/analytics", getUrlAnalytics);
+router.get("/api/urls/:shortCode/analytics", authenticate, getUrlAnalytics);
 
 /**
  * @openapi
  * /api/urls/{shortCode}:
  *   get:
  *     summary: Get short URL details
- *     description: Retrieves details of a short URL by its short code.
+ *     description: Retrieves details of a short URL by its short code (owner only).
  *     tags:
  *       - URLs
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: shortCode
@@ -180,6 +213,18 @@ router.get("/api/urls/:shortCode/analytics", getUrlAnalytics);
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Url'
+ *       401:
+ *         description: Unauthorized - missing, invalid, or expired token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/UnauthorizedError'
+ *       403:
+ *         description: Forbidden - URL belongs to another user
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ForbiddenError'
  *       404:
  *         description: Short URL not found
  *         content:
@@ -188,9 +233,11 @@ router.get("/api/urls/:shortCode/analytics", getUrlAnalytics);
  *               $ref: '#/components/schemas/ErrorResponse'
  *   patch:
  *     summary: Update short URL
- *     description: Updates the originalUrl and/or shortCode of an existing short link.
+ *     description: Updates the originalUrl and/or shortCode of an existing short link (owner only).
  *     tags:
  *       - URLs
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: shortCode
@@ -217,6 +264,18 @@ router.get("/api/urls/:shortCode/analytics", getUrlAnalytics);
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         description: Unauthorized - missing, invalid, or expired token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/UnauthorizedError'
+ *       403:
+ *         description: Forbidden - URL belongs to another user
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ForbiddenError'
  *       404:
  *         description: Short URL not found
  *         content:
@@ -231,9 +290,11 @@ router.get("/api/urls/:shortCode/analytics", getUrlAnalytics);
  *               $ref: '#/components/schemas/ErrorResponse'
  *   delete:
  *     summary: Delete short URL
- *     description: Deletes a short URL document and cascades deletion to associated click records.
+ *     description: Deletes a short URL document and cascades deletion to associated click records (owner only).
  *     tags:
  *       - URLs
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: shortCode
@@ -248,6 +309,18 @@ router.get("/api/urls/:shortCode/analytics", getUrlAnalytics);
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/SuccessMessageResponse'
+ *       401:
+ *         description: Unauthorized - missing, invalid, or expired token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/UnauthorizedError'
+ *       403:
+ *         description: Forbidden - URL belongs to another user
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ForbiddenError'
  *       404:
  *         description: Short URL not found
  *         content:
@@ -255,16 +328,16 @@ router.get("/api/urls/:shortCode/analytics", getUrlAnalytics);
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.get("/api/urls/:shortCode", getUrlDetails);
-router.patch("/api/urls/:shortCode", updateUrl);
-router.delete("/api/urls/:shortCode", deleteUrl);
+router.get("/api/urls/:shortCode", authenticate, getUrlDetails);
+router.patch("/api/urls/:shortCode", authenticate, updateUrl);
+router.delete("/api/urls/:shortCode", authenticate, deleteUrl);
 
 /**
  * @openapi
  * /{shortCode}:
  *   get:
  *     summary: Redirect short code to original URL
- *     description: Increments click count, records a click entry, and redirects client with HTTP 302 to the original destination URL.
+ *     description: Increments click count, records a click entry, and redirects client with HTTP 302 to the original destination URL. Public endpoint - no authentication required.
  *     tags:
  *       - Redirection
  *     parameters:

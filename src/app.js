@@ -3,6 +3,7 @@ import "dotenv/config";
 import helmet from "helmet";
 import cors from "cors";
 import { connectToDatabase, sanitizeMongoUri } from "./mongodb.js";
+import authRoutes from "./routes/authRoutes.js";
 import urlRoutes from "./routes/urlRoutes.js";
 import errorHandler from "./middleware/errorHandler.js";
 import { apiLimiter } from "./middleware/rateLimiter.js";
@@ -46,6 +47,7 @@ app.get("/health", (req, res) => {
 // Apply rate limiting exclusively to /api routes
 app.use("/api", apiLimiter);
 
+app.use(authRoutes);
 app.use(urlRoutes);
 
 app.use(errorHandler);
