@@ -136,6 +136,34 @@ Configure the following environment variables in your cloud deployment platform 
 
 ---
 
+## Render + MongoDB Atlas Deployment
+
+Follow these mandatory steps to successfully deploy the API on Render connected to MongoDB Atlas:
+
+### 1. MongoDB Atlas Configuration
+- **Network Access (IP Whitelist)**:
+  - In MongoDB Atlas, navigate to **Network Access** under **Security**.
+  - Add IP Address `0.0.0.0/0` (Allow Access from Anywhere). Render uses dynamic IP addresses that will fail TLS handshakes or throw `MongoServerSelectionError: ... SSL routines:ssl3_read_bytes:tlsv1 alert internal error` if the Render deployment IP is not whitelisted.
+- **Database User**:
+  - In **Database Access**, create a user with `readWrite` access to your database.
+  - If your password contains special characters (`@`, `:`, `#`, `%`, etc.), ensure they are URL-encoded in the connection string.
+
+### 2. Render Environment Variables
+In your Render Dashboard -> **Web Service** -> **Environment**:
+| Key | Value | Description |
+|---|---|---|
+| `MONGODB_URI` | `mongodb+srv://<username>:<password>@cluster0.xxx.mongodb.net/url_shortener?retryWrites=true&w=majority` | Full MongoDB Atlas connection string |
+| `MONGODB_DB_NAME` | `url_shortener` | Database name |
+| `NODE_ENV` | `production` | Production mode flag |
+
+### 3. Render Web Service Settings
+- **Runtime**: Node
+- **Build Command**: `npm ci`
+- **Start Command**: `npm start`
+- **Health Check Path**: `/health`
+
+---
+
 ## API & Documentation
 
 - **Base URL:** `http://localhost:3000` (or your production cloud URL)

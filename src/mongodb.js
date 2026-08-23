@@ -3,11 +3,21 @@ import { MongoClient } from "mongodb";
 let client;
 let database;
 
+/**
+ * Redacts credentials from MongoDB connection URI for safe logging.
+ */
+export function sanitizeMongoUri(uri) {
+  if (!uri) return "";
+  return uri.replace(/mongodb(\+srv)?:\/\/([^:]+):([^@]+)@/, "mongodb$1://***:***@");
+}
+
 export async function connectToDatabase(overrideDbName) {
-  const connectionString = process.env.MONGODB_URI;
+  const connectionString =
+    process.env.MONGODB_URI ||
+    (process.env.NODE_ENV === "test" ? "mongodb://127.0.0.1:27017" : null);
 
   if (!connectionString) {
-    throw new Error("MONGODB_URI is not set. Add it to your .env file.");
+    throw new Error("MONGODB_URI is not set. Add it to your .env file or environment variables.");
   }
 
   const dbName =

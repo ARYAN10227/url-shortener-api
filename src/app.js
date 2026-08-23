@@ -2,7 +2,7 @@ import express from "express";
 import "dotenv/config";
 import helmet from "helmet";
 import cors from "cors";
-import { connectToDatabase } from "./mongodb.js";
+import { connectToDatabase, sanitizeMongoUri } from "./mongodb.js";
 import urlRoutes from "./routes/urlRoutes.js";
 import errorHandler from "./middleware/errorHandler.js";
 import { apiLimiter } from "./middleware/rateLimiter.js";
@@ -58,7 +58,12 @@ async function startServer() {
       console.log(`Server is running on port ${PORT}`);
     });
   } catch (error) {
-    console.error("Failed to connect to MongoDB:", error.message);
+    const sanitizedUri = sanitizeMongoUri(process.env.MONGODB_URI);
+    console.error(`Failed to connect to MongoDB (${sanitizedUri}):`);
+    console.error(error.stack || error);
+    if (error.cause) {
+      console.error("Underlying Cause:", error.cause);
+    }
     process.exit(1);
   }
 }
