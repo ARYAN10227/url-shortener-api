@@ -10,14 +10,42 @@
 ![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-47A248?logo=mongodb&logoColor=white)
 ![JWT](https://img.shields.io/badge/Auth-JWT-000000?logo=jsonwebtokens&logoColor=white)
 ![Render](https://img.shields.io/badge/Deployed_on-Render-46E3B7?logo=render&logoColor=black)
+![Swagger](https://img.shields.io/badge/OpenAPI-3.0-85EA2D?logo=swagger&logoColor=black)
+![License: MIT](https://img.shields.io/badge/license-MIT-green)
 
-[**📘 Live API docs (Swagger)**](https://url-shortener-api-h1dj.onrender.com/api-docs) ·
-[**❤️ Health check**](https://url-shortener-api-h1dj.onrender.com/health) ·
-[**🖥️ Frontend repo**](https://github.com/ARYAN10227/url-shortener-frontend)
+[![Live app](https://img.shields.io/badge/▶_Live_app-Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://url-shortener-frontend-t-aryan.vercel.app)
+[![API docs](https://img.shields.io/badge/Live_API_docs-Swagger-85EA2D?style=for-the-badge&logo=swagger&logoColor=black)](https://url-shortener-api-h1dj.onrender.com/api-docs)
+[![Frontend repo](https://img.shields.io/badge/Frontend-React_app-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://github.com/ARYAN10227/url-shortener-frontend)
+
+[❤️ Health check](https://url-shortener-api-h1dj.onrender.com/health) ·
+[🍃 DB health](https://url-shortener-api-h1dj.onrender.com/health/db)
+
+<img src="docs/screenshots/swagger.png" alt="Interactive Swagger API documentation" width="100%"/>
 
 </div>
 
 A production-ready RESTful URL Shortener service built with Node.js, Express, and MongoDB, featuring multi-user JWT authentication and resource ownership authorization.
+It powers [**Shortly**](https://url-shortener-frontend-t-aryan.vercel.app), the React frontend in
+[`url-shortener-frontend`](https://github.com/ARYAN10227/url-shortener-frontend).
+
+## 🏗️ Architecture
+
+```mermaid
+flowchart LR
+    web["⚛️ Shortly frontend<br/>React · Vercel"] -->|"JSON + JWT"| api
+    visitor["🔗 Short-link visitor"] -->|"GET /:code"| api
+    subgraph api["🟢 Express API · Render"]
+      direction TB
+      mw["helmet · CORS · rate limit<br/>(per client IP via trust proxy)"] --> routes["auth · urls · analytics · redirect"]
+      routes --> auth["JWT verify +<br/>ownership checks"]
+    end
+    api --> db[("🍃 MongoDB Atlas<br/>users · urls · clicks<br/>unique + compound indexes")]
+    cron["⏰ GitHub Actions<br/>keep-alive · every 14 min"] -.->|"GET /health/db"| api
+    ci["✅ GitHub Actions CI<br/>tests vs real MongoDB"] -.-> api
+```
+
+**Request lifecycle for a redirect:** `GET /:code` → atomic `findOneAndUpdate` with `$inc: { clicks: 1 }` →
+click event inserted into `clicks` (with timestamp) → `302` to the original URL.
 
 > ⏳ Hosted on Render's free tier. A [keep-alive job](.github/workflows/keepalive.yml) pings
 > `/health/db` every 14 minutes, so the server stays awake and the free MongoDB Atlas cluster stays
@@ -49,7 +77,20 @@ with `DEMO_ENABLED=false`.
 - **Reserved short codes** (`api`, `api-docs`, `health`, …) can't be claimed, so a custom alias can
   never shadow an API route.
 - **Cryptographically random 7-character base62 codes** (≈3.5 trillion combinations).
-- Every fix is covered by the integration suite, which runs in CI against a real MongoDB.
+- **Shared demo account guard rails:** capped at its newest 20 links, its email can't be registered,
+  concurrent first logins can't create duplicates, and it can never see or touch other users' links.
+- **Keep-alive job** pings `/health/db` every 14 minutes, so the free Render server and the free Atlas
+  cluster both stay active.
+- Every behaviour above is covered by the integration suite (48 tests), which runs in CI against a real MongoDB.
+
+## 🖼️ Screenshots
+
+<table>
+<tr>
+<td width="50%"><b>Swagger UI</b> — every endpoint, try it live<br/><img src="docs/screenshots/swagger-demo.png" alt="Swagger demo endpoint"/></td>
+<td width="50%"><b>The frontend using this API</b><br/><img src="docs/screenshots/dashboard.png" alt="Shortly dashboard"/></td>
+</tr>
+</table>
 
 ## Features
 
@@ -170,6 +211,7 @@ curl -X POST http://localhost:3000/api/urls \
 |---|---|---|---|
 | `GET` | `/:shortCode` | Public short link redirection (HTTP 302) | No |
 | `GET` | `/health` | Health check endpoint (`{"status": "ok"}`) | No |
+| `GET` | `/health/db` | Health check that also pings MongoDB (used by the keep-alive job) | No |
 | `GET` | `/api-docs` | Interactive Swagger UI API documentation | No |
 
 ---
