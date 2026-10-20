@@ -85,7 +85,12 @@ app.use(errorHandler);
 async function startServer() {
   try {
     await connectToDatabase();
-    await ensureDemoAccount();
+    try {
+      await ensureDemoAccount({ resetPassword: true });
+    } catch (error) {
+      // The demo is a convenience; never let it stop the real API from starting.
+      console.error("Could not prepare the demo account:", error);
+    }
 
     app.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);
