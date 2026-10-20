@@ -3,6 +3,7 @@ import "dotenv/config";
 import helmet from "helmet";
 import cors from "cors";
 import { connectToDatabase, sanitizeMongoUri } from "./mongodb.js";
+import { ensureDemoAccount } from "./demo.js";
 import authRoutes from "./routes/authRoutes.js";
 import urlRoutes from "./routes/urlRoutes.js";
 import errorHandler from "./middleware/errorHandler.js";
@@ -13,9 +14,14 @@ import { setupSwagger } from "./config/swagger.js";
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Render (and most hosts) sit behind one reverse proxy. Trusting it makes req.ip the real
+// client IP (so rate limiting is per visitor, not one shared bucket) and req.protocol
+// "https" (so generated short URLs use https).
+app.set("trust proxy", Number(process.env.TRUST_PROXY_HOPS ?? 1));
+
 app.use(helmet());
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "10kb" }));
 
 // Mount Swagger UI at /api-docs (before rate limiter)
 setupSwagger(app);
@@ -55,6 +61,7 @@ app.use(errorHandler);
 async function startServer() {
   try {
     await connectToDatabase();
+    await ensureDemoAccount();
 
     app.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);
