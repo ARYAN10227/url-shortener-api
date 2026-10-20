@@ -1,6 +1,53 @@
-# URL Shortener API
+<div align="center">
+
+# 🔗 URL Shortener API
+
+**REST API behind Shortly — shorten links, redirect them, and track every click.**
+
+[![CI](https://github.com/ARYAN10227/url-shortener-api/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ARYAN10227/url-shortener-api/actions/workflows/ci.yml)
+![Node.js](https://img.shields.io/badge/Node.js-20-339933?logo=nodedotjs&logoColor=white)
+![Express](https://img.shields.io/badge/Express-5-000000?logo=express&logoColor=white)
+![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-47A248?logo=mongodb&logoColor=white)
+![JWT](https://img.shields.io/badge/Auth-JWT-000000?logo=jsonwebtokens&logoColor=white)
+![Render](https://img.shields.io/badge/Deployed_on-Render-46E3B7?logo=render&logoColor=black)
+
+[**📘 Live API docs (Swagger)**](https://url-shortener-api-h1dj.onrender.com/api-docs) ·
+[**❤️ Health check**](https://url-shortener-api-h1dj.onrender.com/health) ·
+[**🖥️ Frontend repo**](https://github.com/ARYAN10227/url-shortener-frontend)
+
+</div>
 
 A production-ready RESTful URL Shortener service built with Node.js, Express, and MongoDB, featuring multi-user JWT authentication and resource ownership authorization.
+
+> ⏳ Hosted on Render's free tier, which sleeps when idle — the **first request can take up to a minute**.
+
+## 🎯 Try it in 10 seconds (demo account)
+
+No sign-up needed. A shared, public demo account comes with sample links and click history:
+
+| | |
+|---|---|
+| Email | `demo@urlshortener.dev` |
+| Password | `demo1234` |
+| One-click | `POST /api/auth/demo` → returns a JWT for the demo account |
+
+```sh
+TOKEN=$(curl -s -X POST https://url-shortener-api-h1dj.onrender.com/api/auth/demo | jq -r .token)
+curl -s https://url-shortener-api-h1dj.onrender.com/api/urls -H "Authorization: Bearer $TOKEN" | jq
+```
+
+If the demo links are ever all deleted, the next demo login re-creates them. Turn the demo off
+with `DEMO_ENABLED=false`.
+
+## 🛡️ Production hardening
+
+- **Correct client IPs behind Render's proxy** (`trust proxy`), so rate limits apply per visitor
+  instead of one shared bucket for the whole site, and generated short URLs use `https://`.
+- **Malformed JSON → `400`**, oversized bodies → `413`, never a confusing `500`.
+- **Reserved short codes** (`api`, `api-docs`, `health`, …) can't be claimed, so a custom alias can
+  never shadow an API route.
+- **Cryptographically random 7-character base62 codes** (≈3.5 trillion combinations).
+- Every fix is covered by the integration suite, which runs in CI against a real MongoDB.
 
 ## Features
 
@@ -61,6 +108,7 @@ Authorization: Bearer <your_jwt_token>
 |---|---|---|---|
 | `POST` | `/api/auth/register` | Register new user account and receive JWT | No |
 | `POST` | `/api/auth/login` | Log in with email and password to receive JWT | No |
+| `POST` | `/api/auth/demo` | One-click login to the public demo account (JWT valid 1 day) | No |
 | `GET` | `/api/auth/me` | Retrieve profile of the logged-in user | **Yes (Bearer)** |
 
 #### Example: User Registration
@@ -136,6 +184,9 @@ Configure the following environment variables in `.env` (or cloud dashboard):
 | `NODE_ENV` | Optional | Node environment (`development`, `production`, `test`) | `development` |
 | `JWT_SECRET` | **Required** | Secret key used to sign and verify JWT tokens | `your_super_secret_jwt_key_32_chars` |
 | `JWT_EXPIRES_IN` | Optional | Lifetime expiration of issued JWTs | `7d` |
+| `DEMO_ENABLED` | Optional | Enable the public demo account and `POST /api/auth/demo` | `true` |
+| `DEMO_EMAIL` / `DEMO_PASSWORD` | Optional | Demo account credentials | `demo@urlshortener.dev` / `demo1234` |
+| `TRUST_PROXY_HOPS` | Optional | Reverse proxies in front of the app (Render = 1) | `1` |
 
 ---
 
@@ -194,3 +245,13 @@ docker compose down
 2. **Environment Variables**: Set `MONGODB_URI`, `MONGODB_DB_NAME`, `JWT_SECRET`, `JWT_EXPIRES_IN`, and `NODE_ENV=production`.
 3. **Build & Start**: Build Command: `npm ci`, Start Command: `npm start`.
 4. **Health Check**: Set health check path to `/health`.
+
+---
+
+<div align="center">
+
+Built by **Aryan Raj** ·
+[GitHub](https://github.com/ARYAN10227) ·
+[LinkedIn](https://linkedin.com/in/aryan-raj-2b3868340)
+
+</div>
