@@ -553,6 +553,69 @@ describe("URL Shortener API Integration Tests", () => {
       expect(list.body.pagination.total).toBe(4);
     });
 
+    it("handles many simultaneous first-time demo logins without duplicates", async () => {
+      const results = await Promise.all(
+        Array.from({ length: 6 }, () => request(app).post("/api/auth/demo"))
+      );
+      expect(results.every((r) => r.status === 200)).toBe(true);
+      expect(await db.collection("users").countDocuments({ email: "demo@urlshortener.dev" })).toBe(1);
+      const demoUser = await db.collection("users").findOne({ email: "demo@urlshortener.dev" });
+      expect(await db.collection("urls").countDocuments({ userId: demoUser._id })).toBe(4);
+    });
+
+    it("caps the shared demo account at 20 links, dropping the oldest", async () => {
+      const login = await request(app).post("/api/auth/demo");
+      const token = login.body.token;
+      for (let i = 0; i < 20; i++) {
+        const res = await request(app)
+          .post("/api/urls")
+          .set("Authorization", `Bearer ${token}`)
+          .send({ originalUrl: `https://example.com/demo-${i}` });
+        expect(res.status).toBe(201);
+      }
+      const list = await request(app)
+        .get("/api/urls?limit=100")
+        .set("Authorization", `Bearer ${token}`);
+      expect(list.body.pagination.total).toBe(20);
+      const urls = list.body.urls.map((u) => u.originalUrl);
+      expect(urls).toContain("https://example.com/demo-19");
+      expect(urls).not.toContain("https://github.com/ARYAN10227");
+    });
+
+    it("does not cap regular user accounts", async () => {
+      for (let i = 0; i < 22; i++) {
+        await request(app)
+          .post("/api/urls")
+          .set("Authorization", `Bearer ${user1Token}`)
+          .send({ originalUrl: `https://example.com/u-${i}` });
+      }
+      const list = await request(app)
+        .get("/api/urls?limit=100")
+        .set("Authorization", `Bearer ${user1Token}`);
+      expect(list.body.pagination.total).toBe(22);
+    });
+
+    it("refuses to register a new account with the demo email", async () => {
+      const res = await request(app)
+        .post("/api/auth/register")
+        .send({ name: "Sneaky", email: "Demo@UrlShortener.dev", password: "password123" });
+      expect(res.status).toBe(409);
+      expect(res.body.error).toMatch(/demo account/i);
+    });
+
+    it("a demo user cannot see or touch another user's links", async () => {
+      const own = await request(app)
+        .post("/api/urls")
+        .set("Authorization", `Bearer ${user1Token}`)
+        .send({ originalUrl: "https://example.com/private", shortCode: "private-link" });
+      expect(own.status).toBe(201);
+      const demo = await request(app).post("/api/auth/demo");
+      const res = await request(app)
+        .delete("/api/urls/private-link")
+        .set("Authorization", `Bearer ${demo.body.token}`);
+      expect(res.status).toBe(403);
+    });
+
     it("rejects reserved short codes that would clash with API routes", async () => {
       for (const code of ["health", "api-docs", "API"]) {
         const res = await request(app)
