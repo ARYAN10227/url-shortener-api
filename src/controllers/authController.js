@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { getDatabase } from "../mongodb.js";
+import { ensureDemoAccount, isDemoEnabled } from "../demo.js";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -182,6 +183,48 @@ export async function getMe(req, res, next) {
     }
 
     return res.status(200).json({
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        createdAt: user.createdAt,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function demoLogin(req, res, next) {
+  if (!isDemoEnabled()) {
+    return res.status(404).json({
+      error: "Demo login is disabled.",
+    });
+  }
+
+  const jwtSecret = getJwtSecret();
+  if (!jwtSecret) {
+    return res.status(500).json({
+      error: "JWT_SECRET is not configured on the server.",
+    });
+  }
+
+  try {
+    // Re-creates the demo account and sample links if they were deleted.
+    const user = await ensureDemoAccount();
+    const token = jwt.sign(
+      {
+        userId: user._id.toString(),
+        email: user.email,
+        name: user.name,
+      },
+      jwtSecret,
+      { expiresIn: "1d" }
+    );
+
+    return res.status(200).json({
+      message: "Logged in to the demo account.",
+      token,
       user: {
         _id: user._id,
         name: user.name,
