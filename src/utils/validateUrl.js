@@ -17,6 +17,16 @@ export function validateOriginalUrl(originalUrl) {
   return null;
 }
 
+// Paths the API serves itself; a short link with one of these codes could never be reached.
+export const RESERVED_SHORT_CODES = new Set([
+  "api",
+  "api-docs",
+  "health",
+  "docs",
+  "favicon.ico",
+  "robots.txt",
+]);
+
 export function validateCustomShortCode(shortCode) {
   if (typeof shortCode !== "string") {
     return "shortCode must be a string.";
@@ -35,6 +45,10 @@ export function validateCustomShortCode(shortCode) {
   const allowedRegex = /^[a-zA-Z0-9_-]+$/;
   if (!allowedRegex.test(trimmed)) {
     return "shortCode can only contain letters, numbers, hyphens, and underscores.";
+  }
+
+  if (RESERVED_SHORT_CODES.has(trimmed.toLowerCase())) {
+    return "This shortCode is reserved. Please choose another one.";
   }
 
   return null;
