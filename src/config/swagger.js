@@ -9,10 +9,15 @@ const options = {
       version: "1.0.0",
       description: "A high-performance RESTful API for shortening URLs, tracking click analytics, and managing short links with multi-user JWT authentication.",
     },
+    // The live server is listed first so "Try it out" works on the deployed docs.
     servers: [
       {
+        url: process.env.PUBLIC_API_URL || "https://url-shortener-api-h1dj.onrender.com",
+        description: "Production (Render)",
+      },
+      {
         url: "http://localhost:3000",
-        description: "Local Server",
+        description: "Local development",
       },
     ],
     components: {
