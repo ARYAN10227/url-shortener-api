@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { register, login, getMe } from "../controllers/authController.js";
+import { register, login, getMe, demoLogin } from "../controllers/authController.js";
 import { authenticate } from "../middleware/auth.js";
 
 const router = Router();
@@ -75,6 +75,26 @@ router.post("/api/auth/register", register);
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.post("/api/auth/login", login);
+
+/**
+ * @openapi
+ * /api/auth/demo:
+ *   post:
+ *     summary: One-click demo login
+ *     description: Logs in to a shared, public demo account (creating it and a few sample links if needed) and returns a JWT valid for 1 day. No request body required.
+ *     tags:
+ *       - Authentication
+ *     responses:
+ *       200:
+ *         description: Logged in to the demo account
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AuthResponse'
+ *       404:
+ *         description: Demo login is disabled on this server
+ */
+router.post("/api/auth/demo", demoLogin);
 
 /**
  * @openapi
