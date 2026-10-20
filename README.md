@@ -19,7 +19,9 @@
 
 A production-ready RESTful URL Shortener service built with Node.js, Express, and MongoDB, featuring multi-user JWT authentication and resource ownership authorization.
 
-> ⏳ Hosted on Render's free tier, which sleeps when idle — the **first request can take up to a minute**.
+> ⏳ Hosted on Render's free tier. A [keep-alive job](.github/workflows/keepalive.yml) pings
+> `/health/db` every 14 minutes, so the server stays awake and the free MongoDB Atlas cluster stays
+> active. If it ever does sleep, the first request can take up to a minute.
 
 ## 🎯 Try it in 10 seconds (demo account)
 
