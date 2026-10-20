@@ -3,6 +3,7 @@ import { generateShortCode } from "../utils/generateShortCode.js";
 import { validateOriginalUrl, validateCustomShortCode } from "../utils/validateUrl.js";
 import { parseUrlQuery } from "../utils/parseUrlQuery.js";
 import { parseAnalyticsQuery } from "../utils/parseAnalyticsQuery.js";
+import { isDemoUser, enforceDemoLinkCap } from "../demo.js";
 
 export async function createShortUrl(req, res, next) {
   const originalUrl = req.body?.originalUrl;
@@ -38,6 +39,7 @@ export async function createShortUrl(req, res, next) {
 
     try {
       const result = await database.collection("urls").insertOne(url);
+      if (isDemoUser(req.user.email)) await enforceDemoLinkCap(userId);
       const shortUrl = `${req.protocol}://${req.get("host")}/${trimmedCode}`;
 
       return res.status(201).json({
@@ -70,6 +72,7 @@ export async function createShortUrl(req, res, next) {
 
     try {
       const result = await database.collection("urls").insertOne(url);
+      if (isDemoUser(req.user.email)) await enforceDemoLinkCap(userId);
       const shortUrl = `${req.protocol}://${req.get("host")}/${shortCode}`;
 
       return res.status(201).json({

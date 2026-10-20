@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { getDatabase } from "../mongodb.js";
-import { ensureDemoAccount, isDemoEnabled } from "../demo.js";
+import { ensureDemoAccount, isDemoEnabled, isDemoUser } from "../demo.js";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -38,6 +38,12 @@ export async function register(req, res, next) {
   if (!password || typeof password !== "string" || password.length < 6) {
     return res.status(400).json({
       error: "Password must be at least 6 characters long.",
+    });
+  }
+
+  if (isDemoUser(normalizedEmail)) {
+    return res.status(409).json({
+      error: "This email belongs to the shared demo account. Use \"Try the demo\" or choose another email.",
     });
   }
 
