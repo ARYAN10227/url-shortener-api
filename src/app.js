@@ -2,7 +2,7 @@ import express from "express";
 import "dotenv/config";
 import helmet from "helmet";
 import cors from "cors";
-import { connectToDatabase, sanitizeMongoUri } from "./mongodb.js";
+import { connectToDatabase, sanitizeMongoUri, getDatabase } from "./mongodb.js";
 import { ensureDemoAccount } from "./demo.js";
 import authRoutes from "./routes/authRoutes.js";
 import urlRoutes from "./routes/urlRoutes.js";
@@ -48,6 +48,30 @@ app.get("/", (req, res) => {
  */
 app.get("/health", (req, res) => {
   res.status(200).json({ status: "ok" });
+});
+
+/**
+ * @openapi
+ * /health/db:
+ *   get:
+ *     summary: Database health check
+ *     description: Pings MongoDB. Used by the scheduled keep-alive job so the free Render
+ *       service and the free MongoDB Atlas cluster both see regular activity.
+ *     tags:
+ *       - System
+ *     responses:
+ *       200:
+ *         description: Application and database are healthy
+ *       503:
+ *         description: Database is unreachable
+ */
+app.get("/health/db", async (req, res) => {
+  try {
+    await getDatabase().command({ ping: 1 });
+    res.status(200).json({ status: "ok", database: "ok" });
+  } catch {
+    res.status(503).json({ status: "error", database: "unreachable" });
+  }
 });
 
 // Apply rate limiting exclusively to /api routes

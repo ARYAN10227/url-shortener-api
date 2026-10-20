@@ -494,6 +494,12 @@ describe("URL Shortener API Integration Tests", () => {
       expect(res.body).toEqual({ status: "ok" });
     });
 
+    it("GET /health/db should ping MongoDB and return ok", async () => {
+      const res = await request(app).get("/health/db");
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ status: "ok", database: "ok" });
+    });
+
     it("GET /api-docs should serve Swagger UI documentation without authentication", async () => {
       const res = await request(app).get("/api-docs/");
       expect([200, 301, 302]).toContain(res.status);
