@@ -499,4 +499,91 @@ describe("URL Shortener API Integration Tests", () => {
       expect([200, 301, 302]).toContain(res.status);
     });
   });
+
+  describe("Demo login and hardening fixes", () => {
+    it("POST /api/auth/demo logs in to the demo account and seeds sample links", async () => {
+      const res = await request(app).post("/api/auth/demo");
+      expect(res.status).toBe(200);
+      expect(res.body.token).toBeDefined();
+      expect(res.body.user.email).toBe("demo@urlshortener.dev");
+      expect(res.body.user.passwordHash).toBeUndefined();
+
+      const list = await request(app)
+        .get("/api/urls")
+        .set("Authorization", `Bearer ${res.body.token}`);
+      expect(list.status).toBe(200);
+      expect(list.body.urls.length).toBeGreaterThan(0);
+      expect(list.body.urls.every((u) => u.shortCode.startsWith("demo-"))).toBe(true);
+    });
+
+    it("demo login is idempotent and does not duplicate sample links", async () => {
+      const first = await request(app).post("/api/auth/demo");
+      await request(app).post("/api/auth/demo");
+      const list = await request(app)
+        .get("/api/urls")
+        .set("Authorization", `Bearer ${first.body.token}`);
+      expect(list.body.pagination.total).toBe(4);
+      expect(await db.collection("users").countDocuments({ email: "demo@urlshortener.dev" })).toBe(1);
+    });
+
+    it("the demo credentials also work through the normal login", async () => {
+      await request(app).post("/api/auth/demo");
+      const res = await request(app)
+        .post("/api/auth/login")
+        .send({ email: "demo@urlshortener.dev", password: "demo1234" });
+      expect(res.status).toBe(200);
+      expect(res.body.token).toBeDefined();
+    });
+
+    it("demo account gets fresh sample links again after the user deletes them all", async () => {
+      const login = await request(app).post("/api/auth/demo");
+      const demoId = login.body.user._id;
+      const { ObjectId } = await import("mongodb");
+      await db.collection("urls").deleteMany({ userId: new ObjectId(demoId) });
+      const again = await request(app).post("/api/auth/demo");
+      const list = await request(app)
+        .get("/api/urls")
+        .set("Authorization", `Bearer ${again.body.token}`);
+      expect(list.body.pagination.total).toBe(4);
+    });
+
+    it("rejects reserved short codes that would clash with API routes", async () => {
+      for (const code of ["health", "api-docs", "API"]) {
+        const res = await request(app)
+          .post("/api/urls")
+          .set("Authorization", `Bearer ${user1Token}`)
+          .send({ originalUrl: "https://example.com", shortCode: code });
+        expect(res.status).toBe(400);
+        expect(res.body.error).toMatch(/reserved/i);
+      }
+    });
+
+    it("generates 7-character base62 short codes", async () => {
+      const res = await request(app)
+        .post("/api/urls")
+        .set("Authorization", `Bearer ${user1Token}`)
+        .send({ originalUrl: "https://example.com/page" });
+      expect(res.status).toBe(201);
+      expect(res.body.shortCode).toMatch(/^[A-Za-z0-9]{7}$/);
+    });
+
+    it("returns 400 (not 500) for a malformed JSON body", async () => {
+      const res = await request(app)
+        .post("/api/auth/login")
+        .set("Content-Type", "application/json")
+        .send('{"email": "broken"');
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/valid JSON/i);
+    });
+
+    it("builds https short URLs when behind a TLS-terminating proxy", async () => {
+      const res = await request(app)
+        .post("/api/urls")
+        .set("Authorization", `Bearer ${user1Token}`)
+        .set("X-Forwarded-Proto", "https")
+        .send({ originalUrl: "https://example.com/secure" });
+      expect(res.status).toBe(201);
+      expect(res.body.shortUrl).toMatch(/^https:\/\//);
+    });
+  });
 });
